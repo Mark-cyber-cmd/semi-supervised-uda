@@ -211,7 +211,9 @@ class DACS(UDADecorator):
         batch_size = img.shape[0]
         dev = img.device
 
-
+        
+        target_img = target_unlabel_img
+        target_img_metas = target_unlabel_img_metas
         # Init/update ema model
         if self.local_iter == 0:
             self._init_ema_weights()
@@ -305,6 +307,22 @@ class DACS(UDADecorator):
         mixed_img = torch.cat(mixed_img)
         mixed_lbl = torch.cat(mixed_lbl)
 
+
+        mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
+        mix_masks_event = get_class_masks(target_gt)
+        for i in range(batch_size):
+            strong_parameters['mix'] = mix_masks_event[i]
+            mixed_img_event[i], mixed_lbl_event[i] = strong_transform(
+                strong_parameters,
+                data=torch.stack((target_label_img[i], target_img[i])),
+                target=torch.stack((target_gt[i][0], pseudo_label[i])))
+            _, pseudo_weight[i] = strong_transform(
+                strong_parameters,
+                target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
+        mixed_img_event = torch.cat(mixed_img_event)
+        mixed_lbl_event = torch.cat(mixed_lbl_event)
+
+
         # Train on mixed images
         mix_losses = self.get_model().forward_train(
             mixed_img, img_metas, mixed_lbl, pseudo_weight, return_feat=True)
@@ -314,6 +332,15 @@ class DACS(UDADecorator):
         log_vars.update(mix_log_vars)
         mix_loss.backward()
 
+
+        mix_losses_event = self.get_model().forward_train(
+            mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
+        mix_losses_event.pop('features')
+        mix_losses_event = add_prefix(mix_losses_event, 'mix')
+        mix_losses_event, mix_log_vars_event = self._parse_losses(mix_losses_event)
+        log_vars.update(mix_log_vars_event)
+        mix_losses_event.backward()
+
         if self.local_iter % self.debug_img_interval == 0:
             out_dir = os.path.join(self.train_cfg['work_dir'],
                                    'class_mix_debug')
@@ -321,6 +348,9 @@ class DACS(UDADecorator):
             vis_img = torch.clamp(denorm(img, means, stds), 0, 1)
             vis_trg_img = torch.clamp(denorm(target_img, means, stds), 0, 1)
             vis_mixed_img = torch.clamp(denorm(mixed_img, means, stds), 0, 1)
+
+            vis_mixed_img_event = torch.clamp(denorm(mixed_img_event, means, stds), 0, 1)
+
             for j in range(batch_size):
                 rows, cols = 2, 5
                 fig, axs = plt.subplots(
@@ -336,8 +366,8 @@ class DACS(UDADecorator):
                         'left': 0
                     },
                 )
-                subplotimg(axs[0][0], vis_img[j], 'Source Image')
-                subplotimg(axs[1][0], vis_trg_img[j], 'Target Image')
+                subplotimg(axs[0][0], vis_img[j]/(vis_img[j].max()-vis_img[j].min())*255, 'Source Image')
+                subplotimg(axs[1][0], vis_trg_img[j]/(vis_trg_img[j].max()-vis_trg_img[j].min())*255, 'Target Image')
                 subplotimg(
                     axs[0][1],
                     gt_semantic_seg[j],
@@ -354,9 +384,13 @@ class DACS(UDADecorator):
                 # subplotimg(axs[0][3], pred_u_s[j], "Seg Pred",
                 #            cmap="cityscapes")
                 subplotimg(
-                    axs[1][3], mixed_lbl[j], 'Seg Targ', cmap='cityscapes')
+                    axs[1][3], vis_mixed_img_event[j], 'event mix')
                 subplotimg(
-                    axs[0][3], pseudo_weight[j], 'Pseudo W.', vmin=0, vmax=1)
+                    axs[0][3], mix_masks_event[j], 'event mix mask.', vmin=0, vmax=1)
+                # subplotimg(
+                #     axs[1][3], mixed_lbl[j], 'Seg Targ', cmap='cityscapes')
+                # subplotimg(
+                #     axs[0][3], pseudo_weight[j], 'Pseudo W.', vmin=0, vmax=1)
                 if self.debug_fdist_mask is not None:
                     subplotimg(
                         axs[0][4],

@@ -13,4 +13,4 @@ cd /mnt/data/optimal/dingyiming/Codes/semi-supervised-uda
 # cityscapes ------->  DSEC
 # python run_experiments.py --config configs/xxformer/cs2dsec_uda_xxformer.py
 # GTA5       ------->  DSEC
-python run_experiments.py --config configs/xxformer/gta2dsec_uda_xxformer.py
+python run_experiments.py --config configs/xxformer/gta2dsec_semi_xxformer.py

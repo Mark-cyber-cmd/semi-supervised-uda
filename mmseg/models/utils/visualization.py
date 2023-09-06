@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from PIL import Image
+import numpy
 
 Cityscapes_palette = [
     128, 64, 128, 244, 35, 232, 70, 70, 70, 102, 102, 156, 190, 153, 153, 153,
@@ -108,5 +109,11 @@ def subplotimg(ax,
         vmax = np.max(img)
         title += f' {vmin:.3f}-{vmax:.3f}'
 
-    ax.imshow(img, **kwargs)
+    if isinstance(img, Image.Image):
+        ax.imshow(img, **kwargs)
+    elif isinstance(img,numpy.ndarray):
+        if len(img.shape)==3:
+            ax.imshow(img.squeeze(0), **kwargs)
+        else:
+            ax.imshow(img, **kwargs)
     ax.set_title(title)

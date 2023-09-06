@@ -143,7 +143,7 @@ def main(args):
     model = build_train_model(
         cfg, train_cfg=cfg.get('train_cfg'), test_cfg=cfg.get('test_cfg'))
 
-    # model.init_weights()
+    model.init_weights()
 
     logger.info(model)
 
