@@ -1,0 +1,7 @@
+data/
+work_dirs/
+configs/generated
+pretrained
+/configs/xxformer/gta2dsec_debug.py
+/configs/_base_/datasets/uda_gta_to_dsec_512_512_debug.py
+__pycache__/
