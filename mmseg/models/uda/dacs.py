@@ -204,7 +204,7 @@ class DACS(UDADecorator):
             gt_semantic_seg (Tensor): Semantic segmentation masks
                 used if the architecture supports semantic segmentation task.
 
-        Returns:y
+        Returns:y 
             dict[str, Tensor]: a dictionary of loss components
         """
         log_vars = {}
