@@ -8,8 +8,8 @@ _base_ = [
     # DAFormer Network Architecture
     '../_base_/models/daformer_sepaspp_mitb5.py',
     # GTA->DSEC Data Loading
-    '../_base_/datasets/uda_gta_to_dsec_512*512.py',
-    # '../_base_/datasets/semi_gta_to_desc_460*460.py'
+    '../_base_/datasets/uda_gta_to_dsec_512x512.py',
+    # '../_base_/datasets/semi_gta_to_desc_460x460.py'
     # Basic UDA Self-Training
     '../_base_/uda/dacs.py',
     # AdamW Optimizer

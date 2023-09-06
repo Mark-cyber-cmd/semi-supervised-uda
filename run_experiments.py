@@ -9,6 +9,10 @@ import torch
 from experiments import generate_experiment_cfgs
 from mmcv import Config
 from tools import train
+import warnings
+
+# 忽略所有的警告
+warnings.filterwarnings('ignore')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
