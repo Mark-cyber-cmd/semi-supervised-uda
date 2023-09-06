@@ -190,7 +190,7 @@ class DACS(UDADecorator):
         return feat_loss, feat_log
 
     def forward_train(self, img, img_metas, gt_semantic_seg, target_label_img,
-                      target_label_img_metas,  target_unlabel_img,
+                      target_label_img_metas, target_gt,  target_unlabel_img,
                       target_unlabel_img_metas):
         """Forward function for training.
 
@@ -204,7 +204,7 @@ class DACS(UDADecorator):
             gt_semantic_seg (Tensor): Semantic segmentation masks
                 used if the architecture supports semantic segmentation task.
 
-        Returns:
+        Returns:y
             dict[str, Tensor]: a dictionary of loss components
         """
         log_vars = {}

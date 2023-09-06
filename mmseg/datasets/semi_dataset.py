@@ -123,13 +123,17 @@ class SemiDataset(object):
         #     s1 = self.source[idx // len(self.target)]
         #     s2 = self.target[idx % len(self.target)]
         
-        
-        s1 = self.source[idx % (len(self.source))]
-        s2 = self.target_unlabel[idx // len(self.target_label)]     
-        s3 = self.target_label[idx % len(self.target_label)]       
+        a = len(self.source)
+        b = len(self.target_label)
+
+
+        s1 = self.source[idx]
+        s2 = self.target_unlabel[idx]     
+        s3 = self.target_label[idx]       
         return {
             **s1, 'target_label_img_metas': s3['img_metas'],
-            'target_label_img': s3['img'] ,
+            'target_label_img': s3['img'] , 
+            'target_gt': s3['gt_semantic_seg'],
              'target_unlabel_img_metas': s2['img_metas'],
             'target_unlabel_img': s2['img']
 

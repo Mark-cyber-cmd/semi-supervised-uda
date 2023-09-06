@@ -11,10 +11,10 @@ file_names = os.listdir(root_sample)
 a = int(len(file_names) / 8)
 
 c = file_names[0]
-sample = np.random.choice(file_names , a+1)
+sample = list(np.random.choice(file_names , a+1))
 
-file_names *= math.ceil(24966 / len(file_names))
-file_names = file_names[0:24966]
+file_names *= math.ceil(30000 / len(file_names))
+file_names = file_names[0:30000]
 
 
 for i in range (len(file_names)):
@@ -27,8 +27,8 @@ for i in range (len(file_names)):
         # f.write(path2 + '\n')
         f.close()
 
-sample *= math.ceil(24966 / len(sample))
-sample = sample[0:24966]
+sample *= math.ceil(25000 / len(sample))
+sample = sample[0:25000]
 
 
 for j in range(len(sample)):
