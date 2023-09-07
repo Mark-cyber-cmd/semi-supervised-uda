@@ -1,3 +1,4 @@
+.idea/
 data/
 work_dirs/
 configs/generated
@@ -6,4 +7,4 @@ pretrained
 /configs/_base_/datasets/uda_gta_to_dsec_512_512_debug.py
 __pycache__/
 configs/_base_/datasets/.ipynb_checkpoints
-configs/_base_/datasets/uda_gta_to_dsec_512x512_debug.py
+configs/_base_/datasets/uda_gta_to_dsec_debug.py

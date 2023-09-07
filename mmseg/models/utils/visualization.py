@@ -111,8 +111,8 @@ def subplotimg(ax,
 
     if isinstance(img, Image.Image):
         ax.imshow(img, **kwargs)
-    elif isinstance(img,numpy.ndarray):
-        if len(img.shape)==3:
+    elif isinstance(img, numpy.ndarray):
+        if len(img.shape) == 3:
             ax.imshow(img.squeeze(0), **kwargs)
         else:
             ax.imshow(img, **kwargs)

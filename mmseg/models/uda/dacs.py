@@ -82,7 +82,7 @@ class DACS(UDADecorator):
             self.imnet_model = build_segmentor(deepcopy(cfg['model']))
         else:
             self.imnet_model = None
-        
+
         self.pos_embedding = nn.Conv2d(in_channels=9, out_channels=3, kernel_size=1, stride=1, padding=0, bias=True)
 
     def get_ema_model(self):
@@ -190,7 +190,7 @@ class DACS(UDADecorator):
         return feat_loss, feat_log
 
     def forward_train(self, img, img_metas, gt_semantic_seg, target_label_img,
-                      target_label_img_metas, target_gt,  target_unlabel_img,
+                      target_label_img_metas, target_gt, target_unlabel_img,
                       target_unlabel_img_metas):
         """Forward function for training.
 
@@ -211,7 +211,6 @@ class DACS(UDADecorator):
         batch_size = img.shape[0]
         dev = img.device
 
-        
         target_img = target_unlabel_img
         target_img_metas = target_unlabel_img_metas
         # Init/update ema model
@@ -307,7 +306,6 @@ class DACS(UDADecorator):
         mixed_img = torch.cat(mixed_img)
         mixed_lbl = torch.cat(mixed_lbl)
 
-
         mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
         mix_masks_event = get_class_masks(target_gt)
         for i in range(batch_size):
@@ -322,7 +320,6 @@ class DACS(UDADecorator):
         mixed_img_event = torch.cat(mixed_img_event)
         mixed_lbl_event = torch.cat(mixed_lbl_event)
 
-
         # Train on mixed images
         mix_losses = self.get_model().forward_train(
             mixed_img, img_metas, mixed_lbl, pseudo_weight, return_feat=True)
@@ -331,7 +328,6 @@ class DACS(UDADecorator):
         mix_loss, mix_log_vars = self._parse_losses(mix_losses)
         log_vars.update(mix_log_vars)
         mix_loss.backward()
-
 
         mix_losses_event = self.get_model().forward_train(
             mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
@@ -366,8 +362,17 @@ class DACS(UDADecorator):
                         'left': 0
                     },
                 )
-                subplotimg(axs[0][0], vis_img[j]/(vis_img[j].max()-vis_img[j].min())*255, 'Source Image')
-                subplotimg(axs[1][0], vis_trg_img[j]/(vis_trg_img[j].max()-vis_trg_img[j].min())*255, 'Target Image')
+
+                def trans_img(img):
+                    img = img.sum(dim=0)
+                    if img.min() < 0:
+                        img = img - img.min()
+                    img = img / (img.max() - img.min()) * 255
+                    return img.type(torch.uint8)
+
+                # todo 得到的source image是三维的，应该是两维的才对, 现在暂时简单处理一下
+                subplotimg(axs[0][0], trans_img(vis_img[j]), 'Source Image')
+                subplotimg(axs[1][0], trans_img(vis_trg_img[j]), 'Target Image')
                 subplotimg(
                     axs[0][1],
                     gt_semantic_seg[j],
@@ -378,15 +383,15 @@ class DACS(UDADecorator):
                     pseudo_label[j],
                     'Target Seg (Pseudo) GT',
                     cmap='cityscapes')
-                subplotimg(axs[0][2], vis_mixed_img[j], 'Mixed Image')
+                subplotimg(axs[0][2], trans_img(vis_mixed_img[j]), 'Mixed Image')
                 subplotimg(
-                    axs[1][2], mix_masks[j][0], 'Domain Mask', cmap='gray')
+                    axs[1][2], trans_img(mix_masks[j][0]), 'Domain Mask', cmap='gray')
                 # subplotimg(axs[0][3], pred_u_s[j], "Seg Pred",
                 #            cmap="cityscapes")
                 subplotimg(
-                    axs[1][3], vis_mixed_img_event[j], 'event mix')
+                    axs[1][3], trans_img(vis_mixed_img_event[j]), 'event mix')
                 subplotimg(
-                    axs[0][3], mix_masks_event[j], 'event mix mask.', vmin=0, vmax=1)
+                    axs[0][3], trans_img(mix_masks_event[j]), 'event mix mask.', vmin=0, vmax=1)
                 # subplotimg(
                 #     axs[1][3], mixed_lbl[j], 'Seg Targ', cmap='cityscapes')
                 # subplotimg(

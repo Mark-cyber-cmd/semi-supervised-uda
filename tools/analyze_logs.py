@@ -46,16 +46,17 @@ def plot_curve(log_dicts, args):
         plt.savefig('./mAcc.png')
 
         plt.figure(3)
-        plt.plot(range(100, 100+50*200, 50), log_dict['decode.acc_seg'][0:200])
-        plt.plot(range(100, 100+50*200, 50), log_dict['mix.decode.acc_seg'][0:200])
+        iteration = 20000 // 50
+        plt.plot(range(100, 100+50*iteration, 50), log_dict['decode.acc_seg'][0:iteration])
+        plt.plot(range(100, 100+50*iteration, 50), log_dict['mix.decode.acc_seg'][0:iteration])
         plt.legend(['acc_seg', 'mixture_acc_seg'])
         plt.xlabel('iter')
         plt.ylabel('Acc')
         plt.savefig('./acc_seg.png')
 
         plt.figure(4)
-        plt.plot(range(100, 100+50*200, 50), log_dict['decode.loss_seg'][0:200])
-        plt.plot(range(100, 100+50*200, 50), log_dict['mix.decode.loss_seg'][0:200])
+        plt.plot(range(100, 100+50*iteration, 50), log_dict['decode.loss_seg'][0:iteration])
+        plt.plot(range(100, 100+50*iteration, 50), log_dict['mix.decode.loss_seg'][0:iteration])
         plt.legend(['loss_seg', 'mixture_loss_seg'])
         plt.xlabel('iter')
         plt.ylabel('Loss')
