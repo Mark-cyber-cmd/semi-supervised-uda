@@ -388,14 +388,14 @@ class DACS(UDADecorator):
                     axs[1][2], trans_img(mix_masks[j][0]), 'Domain Mask', cmap='gray')
                 # subplotimg(axs[0][3], pred_u_s[j], "Seg Pred",
                 #            cmap="cityscapes")
-                subplotimg(
-                    axs[1][3], trans_img(vis_mixed_img_event[j]), 'event mix')
-                subplotimg(
-                    axs[0][3], trans_img(mix_masks_event[j]), 'event mix mask.', vmin=0, vmax=1)
                 # subplotimg(
-                #     axs[1][3], mixed_lbl[j], 'Seg Targ', cmap='cityscapes')
+                #     axs[1][3], vis_mixed_img_event[j], 'event mix')
                 # subplotimg(
-                #     axs[0][3], pseudo_weight[j], 'Pseudo W.', vmin=0, vmax=1)
+                #     axs[0][3], mix_masks_event[j], 'event mix mask.', vmin=0, vmax=1)
+                subplotimg(
+                    axs[1][3], mixed_lbl[j], 'Seg Targ', cmap='cityscapes')
+                subplotimg(
+                    axs[0][3], pseudo_weight[j], 'Pseudo W.', vmin=0, vmax=1)
                 if self.debug_fdist_mask is not None:
                     subplotimg(
                         axs[0][4],

@@ -104,16 +104,25 @@ def subplotimg(ax,
                 img = img.numpy()
             img = colorize_mask(img, palette)
 
+    # if range_in_title:
+    #     vmin = np.min(img)
+    #     vmax = np.max(img)
+    #     title += f' {vmin:.3f}-{vmax:.3f}'
+
+    # if isinstance(img, Image.Image):
+    #     ax.imshow(img, **kwargs)
+    # elif isinstance(img,numpy.ndarray):
+    #     if len(img.shape)==3:
+    #         ax.imshow(img.squeeze(0), **kwargs)
+    #     else:
+    #         ax.imshow(img, **kwargs)
+    # ax.set_title(title)
+
+
     if range_in_title:
         vmin = np.min(img)
         vmax = np.max(img)
         title += f' {vmin:.3f}-{vmax:.3f}'
 
-    if isinstance(img, Image.Image):
-        ax.imshow(img, **kwargs)
-    elif isinstance(img, numpy.ndarray):
-        if len(img.shape) == 3:
-            ax.imshow(img.squeeze(0), **kwargs)
-        else:
-            ax.imshow(img, **kwargs)
+    ax.imshow(img, **kwargs)
     ax.set_title(title)
