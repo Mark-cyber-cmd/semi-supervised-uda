@@ -63,8 +63,8 @@ class LoadImageFromFile(object):
         if filename.split('.')[1]=='npy':
             
             img_o = np.load(filename)
-            img_o = img_o[0:9]
-
+            img_o = img_o[0:1]
+            
             ####### gray
             img = np.sum(img_o,0)
             #######
@@ -76,15 +76,16 @@ class LoadImageFromFile(object):
 
             ####### 9to3
             # img = np.zeros((3,img_o.shape[1],img_o.shape[2])).astype(np.float32)
-            # img[0] = np.sum(img_o[0:3],0)
-            # img[1] = np.sum(img_o[3:6],0)
-            # img[2] = np.sum(img_o[6:9],0)
+            # img[0] = np.sum(img_o[0:9],0)
+            # img[1] = np.sum(img_o[9:18],0)
+            # img[2] = np.sum(img_o[18:27],0)
             # img = np.transpose(img, (1,2,0))
             #######
         else:   
             img_bytes = self.file_client.get(filename)
             img = mmcv.imfrombytes(
                 img_bytes, flag=self.color_type, backend=self.imdecode_backend)
+
             ####### norm
             # img = img + abs(img.min())
             # img = img/(img.max() - img.min())*255

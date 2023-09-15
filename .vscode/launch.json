@@ -1,19 +1,35 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "./run_experiments.py",
+            "name": "run_experiments.py",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "/mnt/data/optimal/dingyiming/Codes/semi-supervised-uda/run_experiments.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-        //    "args": ["--config", "configs/daformer/gta2cs_uda_warm_fdthings_rcs_croppl_a999_daformer_mitb5_s0.py"]
-            // "args": ["--config", "configs/xxformer/gta2dsec_uda_xxformer.py"]
-            "args": ["--config", "configs/xxformer/gta2dsec_semi_xxformer.py"]            
+            "args": [
+                "--config",
+                "configs/xxformer/gta2dsec_semi_xxformer.py"
+            ]
+        },
+        {
+            "name": "event_demo",
+            "type": "python",
+            "request": "launch",
+            "module": "demo.image_demo",
+            "justMyCode": true,
+            "args": [
+                     "./demo/night_event.npy",
+                     "./work_dirs/local-basic/GTA2desc_semi_16_1/230908_1642_GTA2desc_uda_xxformer_1801b.json",
+                     "./work_dirs/local-basic/GTA2desc_semi_16_1/iter_80000.pth"]
+        },
+        {
+            "name": "sampling",
+            "type": "python",
+            "request": "launch",
+            "program": "sample.py",
+            "justMyCode": true,
         }
     ]
 }

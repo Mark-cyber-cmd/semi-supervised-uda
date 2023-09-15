@@ -128,16 +128,37 @@ class SemiDataset(object):
 
 
         s1 = self.source[idx]
-        s2 = self.target_unlabel[idx]     
-        s3 = self.target_label[idx]       
+        s11 = self.source[idx]
+        s2 = self.target_unlabel[idx]   
+        s22 = self.target_unlabel[idx]    
+        s3 = self.target_label[idx]  
+        s33 = self.target_label[idx]  
+
         return {
-            **s1, 'target_label_img_metas': s3['img_metas'],
-            'target_label_img': s3['img'] , 
-            'target_gt': s3['gt_semantic_seg'],
-             'target_unlabel_img_metas': s2['img_metas'],
-            'target_unlabel_img': s2['img']
+            # **s1,
+            'img': [s1['img'],s11['img']],
+            'img_metas': [s1['img_metas'],s11['img_metas']],
+            'gt_semantic_seg': [s1['gt_semantic_seg'],s11['gt_semantic_seg']],
+             'target_label_img_metas': [s3['img_metas'],s33['img_metas']],
+            'target_label_img': [s3['img'],s33['img']] , 
+            'target_gt': [s3['gt_semantic_seg'],s33['gt_semantic_seg']],
+             'target_unlabel_img_metas': [s2['img_metas'],s22['img_metas']],
+            'target_unlabel_img': [s2['img'],s22['img']],
+
 
         }
+
+        # return {
+        #     **s1,
+        #      'target_label_img_metas': s3['img_metas'],
+        #     'target_label_img': s3['img_metas'] , 
+        #     'target_gt': s3['gt_semantic_seg'],
+        #      'target_unlabel_img_metas': s2['img_metas'],
+        #     'target_unlabel_img': s2['img'],
+
+
+        # }
+
 
     def __len__(self):
         return len(self.source) #* (len(self.target_unlabel) + len(self.target_label))

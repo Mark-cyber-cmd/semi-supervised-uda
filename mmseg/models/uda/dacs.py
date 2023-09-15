@@ -211,7 +211,20 @@ class DACS(UDADecorator):
         batch_size = img.shape[0]
         dev = img.device
 
-        target_img = target_unlabel_img
+        img = img[0]
+        gt_semantic_seg = gt_semantic_seg[0]
+        target_label_img = target_label_img[0]
+        target_gt = target_gt[0]
+        target_unlabel_img = target_unlabel_img[0]
+        target_unlabel_img_metas = target_unlabel_img_metas[0]
+        # temporal_consist_0 = target_unlabel_img[:,1]
+        # temporal_consist_1 = target_unlabel_img[:,2]
+
+        # from  torchvision import utils as vutils
+        # vutils.save_image(img[0], '/mnt/data/optimal/dingyiming/Codes/semi-supervised-uda/demo/img.png', normalize=False)
+        # vutils.save_image(target_unlabel_img[0], '/mnt/data/optimal/dingyiming/Codes/semi-supervised-uda/demo/voxel.png', normalize=False)
+
+        target_img = target_unlabel_img#[:,0]
         target_img_metas = target_unlabel_img_metas
         # Init/update ema model
         if self.local_iter == 0:
@@ -270,6 +283,7 @@ class DACS(UDADecorator):
                 m.training = False
             if isinstance(m, DropPath):
                 m.training = False
+        # target_img = target_img.reshape((2,1,640,640))
         ema_logits = self.get_ema_model().encode_decode(
             target_img, target_img_metas)
 
@@ -281,6 +295,52 @@ class DACS(UDADecorator):
         pseudo_weight = pseudo_weight * torch.ones(
             pseudo_prob.shape, device=dev)
 
+        # kl_losses = dict()
+        # kl_loss=torch.nn.KLDivLoss(reduction = 'batchmean')
+        # loss_0 =kl_loss(ema_softmax.log(),ema_softmax)
+        # # loss_0.requires_grad_()
+        # kl_losses['KL_loss'] = loss_0
+        # kl_losses, kl_log_vars = self._parse_losses(kl_losses)
+        # log_vars.update(kl_log_vars)
+        # kl_losses.backward()
+        # kl_loss=torch.nn.KLDivLoss(reduction = 'batchmean')
+        # loss_kl =kl_loss(ema_softmax,ema_softmax0)
+        # loss_kl = loss_kl.requires_grad_()
+        # loss_kl.backward()
+
+        # pseudo_label_fake = torch.ones((pseudo_label.shape))
+        # pseudo_label_fake = pseudo_label_fake.reshape((2,-1))
+        # lab = torch.stack([pseudo_label,pseudo_label,pseudo_label],1)
+        # for j in range(2):
+        #     lab1 = lab[j]
+        #     lab1 = lab1.reshape((3,-1))
+        #     for i in range(lab1.shape[1]):
+        #         ff = lab1[:,i]
+        #         av = torch.bincount(ff)
+        #         ass = torch.argmax(av)
+        #         pseudo_label_fake[j,i] = ass
+        # pseudo_label_fake = pseudo_label_fake.reshape((pseudo_label.shape)).cuda()
+        # idx = torch.where(pseudo_label != pseudo_label_fake )
+        # pseudo_label[idx] = 255
+#############
+        # temporal_consist_0 = temporal_consist_0.reshape((2,1,640,640))
+        # ema_logits = self.get_ema_model().encode_decode(
+        #     temporal_consist_0, target_img_metas)
+
+        # ema_softmax = torch.softmax(ema_logits.detach(), dim=1)
+        # pseudo_prob, pseudo_label0 = torch.max(ema_softmax, dim=1)
+
+        # idx = torch.where(pseudo_label != pseudo_label0 )
+        # pseudo_label[idx] = 255
+
+        # temporal_consist_1 = temporal_consist_1.reshape((2,1,640,640))
+        # ema_logits = self.get_ema_model().encode_decode(
+        #     temporal_consist_1, target_img_metas)
+
+        # ema_softmax = torch.softmax(ema_logits.detach(), dim=1)
+        # pseudo_prob, pseudo_label1 = torch.max(ema_softmax, dim=1)
+
+############
         if self.psweight_ignore_top > 0:
             # Don't trust pseudo-labels in regions with potential
             # rectification artifacts. This can lead to a pseudo-label
@@ -370,9 +430,20 @@ class DACS(UDADecorator):
                     img = img / (img.max() - img.min()) * 255
                     return img.type(torch.uint8)
 
+                def trans_event(event):
+                    event = event.sum(dim=0)
+                    event_r = torch.zeros(event.shape)
+                    event_g = torch.zeros(event.shape)
+                    event_b = torch.zeros(event.shape)
+                    
+                    event_r[event>0] = 255
+                    event_g[event<0] = 255
+
+                    return torch.stack((event_r,event_g,event_b)).type(torch.uint8)
+
                 # todo 得到的source image是三维的，应该是两维的才对, 现在暂时简单处理一下
-                subplotimg(axs[0][0], trans_img(vis_img[j]), 'Source Image')
-                subplotimg(axs[1][0], trans_img(vis_trg_img[j]), 'Target Image')
+                subplotimg(axs[0][0], trans_img(vis_img[j]), 'Source Image', cmap='gray')
+                subplotimg(axs[1][0], trans_event(vis_trg_img[j]), 'Target Image', cmap='gray')
                 subplotimg(
                     axs[0][1],
                     gt_semantic_seg[j],
@@ -383,9 +454,9 @@ class DACS(UDADecorator):
                     pseudo_label[j],
                     'Target Seg (Pseudo) GT',
                     cmap='cityscapes')
-                subplotimg(axs[0][2], trans_img(vis_mixed_img[j]), 'Mixed Image')
+                subplotimg(axs[0][2], trans_img(vis_mixed_img[j]), 'Mixed Image', cmap='gray')
                 subplotimg(
-                    axs[1][2], trans_img(mix_masks[j][0]), 'Domain Mask', cmap='gray')
+                    axs[1][2], trans_img(mix_masks[j][0]), 'Domain Mask')
                 # subplotimg(axs[0][3], pred_u_s[j], "Seg Pred",
                 #            cmap="cityscapes")
                 # subplotimg(

@@ -8,3 +8,4 @@ pretrained
 __pycache__/
 configs/_base_/datasets/.ipynb_checkpoints
 configs/_base_/datasets/uda_gta_to_dsec_debug.py
+.ipynb_checkpoints

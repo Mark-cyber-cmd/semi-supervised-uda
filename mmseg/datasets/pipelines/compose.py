@@ -42,6 +42,7 @@ class Compose(object):
             data = t(data)
             if data is None:
                 return None
+
         return data
 
     def __repr__(self):

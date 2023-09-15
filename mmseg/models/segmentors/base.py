@@ -3,6 +3,7 @@
 import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
+import numpy as np
 
 import mmcv
 import numpy as np
@@ -223,7 +224,10 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         Returns:
             img (Tensor): Only if not `show` or `out_file`
         """
-        img = mmcv.imread(img)
+        if img.split('.')[-1] == 'npy':
+            img = np.load(img)
+        else:
+            img = mmcv.imread(img)
         img = img.copy()
         seg = result[0]
         if palette is None:

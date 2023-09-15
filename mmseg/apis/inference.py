@@ -5,6 +5,7 @@
 import matplotlib.pyplot as plt
 import mmcv
 import torch
+import numpy as np
 from mmcv.parallel import collate, scatter
 from mmcv.runner import load_checkpoint
 
@@ -74,10 +75,19 @@ class LoadImage:
         else:
             results['filename'] = None
             results['ori_filename'] = None
-        img = mmcv.imread(results['img'])
+        if results['img'].split('.')[-1] == 'npy':
+            img = np.load(results['img'])
+            if len(img.shape) == 3:
+                img = img[0:9]
+                img = img.sum(axis=0)
+        else:
+            img = mmcv.imread(results['img'])
         results['img'] = img
         results['img_shape'] = img.shape
         results['ori_shape'] = img.shape
+        results['pad_shape'] = None
+        results['scale_factor'] = None
+        results['img_norm_cfg'] = None
         return results
 
 
