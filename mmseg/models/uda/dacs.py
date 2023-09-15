@@ -211,12 +211,12 @@ class DACS(UDADecorator):
         batch_size = img.shape[0]
         dev = img.device
 
-        img = img[0]
-        gt_semantic_seg = gt_semantic_seg[0]
-        target_label_img = target_label_img[0]
-        target_gt = target_gt[0]
-        target_unlabel_img = target_unlabel_img[0]
-        target_unlabel_img_metas = target_unlabel_img_metas[0]
+        # img = img[0]
+        # gt_semantic_seg = gt_semantic_seg[0]
+        # target_label_img = target_label_img[0]
+        # target_gt = target_gt[0]
+        # target_unlabel_img = target_unlabel_img[0]
+        # target_unlabel_img_metas = target_unlabel_img_metas[0]
         # temporal_consist_0 = target_unlabel_img[:,1]
         # temporal_consist_1 = target_unlabel_img[:,2]
 
