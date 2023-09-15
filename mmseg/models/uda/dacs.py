@@ -29,6 +29,7 @@ from mmseg.models.utils.visualization import subplotimg
 from mmseg.utils.utils import downscale_label_ratio
 import torch.nn as nn
 
+
 def _params_equal(ema_model, model):
     for ema_param, param in zip(ema_model.named_parameters(),
                                 model.named_parameters()):
@@ -83,6 +84,8 @@ class DACS(UDADecorator):
         else:
             self.imnet_model = None
 
+        self.event_model = build_segmentor(deepcopy(cfg['model']))
+
         self.pos_embedding = nn.Conv2d(in_channels=9, out_channels=3, kernel_size=1, stride=1, padding=0, bias=True)
 
     def get_ema_model(self):
@@ -90,6 +93,9 @@ class DACS(UDADecorator):
 
     def get_imnet_model(self):
         return get_module(self.imnet_model)
+
+    def get_event_model(self):
+        return get_module(self.event_model)
 
     def _init_ema_weights(self):
         for param in self.get_ema_model().parameters():
@@ -224,7 +230,7 @@ class DACS(UDADecorator):
         # vutils.save_image(img[0], '/mnt/data/optimal/dingyiming/Codes/semi-supervised-uda/demo/img.png', normalize=False)
         # vutils.save_image(target_unlabel_img[0], '/mnt/data/optimal/dingyiming/Codes/semi-supervised-uda/demo/voxel.png', normalize=False)
 
-        target_img = target_unlabel_img#[:,0]
+        target_img = target_unlabel_img  # [:,0]
         target_img_metas = target_unlabel_img_metas
         # Init/update ema model
         if self.local_iter == 0:
@@ -295,6 +301,7 @@ class DACS(UDADecorator):
         pseudo_weight = pseudo_weight * torch.ones(
             pseudo_prob.shape, device=dev)
 
+        ################################################################################
         # kl_losses = dict()
         # kl_loss=torch.nn.KLDivLoss(reduction = 'batchmean')
         # loss_0 =kl_loss(ema_softmax.log(),ema_softmax)
@@ -322,7 +329,7 @@ class DACS(UDADecorator):
         # pseudo_label_fake = pseudo_label_fake.reshape((pseudo_label.shape)).cuda()
         # idx = torch.where(pseudo_label != pseudo_label_fake )
         # pseudo_label[idx] = 255
-#############
+        #####################################################################################
         # temporal_consist_0 = temporal_consist_0.reshape((2,1,640,640))
         # ema_logits = self.get_ema_model().encode_decode(
         #     temporal_consist_0, target_img_metas)
@@ -340,7 +347,7 @@ class DACS(UDADecorator):
         # ema_softmax = torch.softmax(ema_logits.detach(), dim=1)
         # pseudo_prob, pseudo_label1 = torch.max(ema_softmax, dim=1)
 
-############
+        ####################################################################################
         if self.psweight_ignore_top > 0:
             # Don't trust pseudo-labels in regions with potential
             # rectification artifacts. This can lead to a pseudo-label
@@ -397,6 +404,30 @@ class DACS(UDADecorator):
         log_vars.update(mix_log_vars_event)
         mix_losses_event.backward()
 
+        losses_event = self.get_event_model().forward_train(
+            target_label_img, target_label_img_metas, target_gt, return_feat=True)
+        losses_event.pop('features')
+        losses_event = add_prefix(losses_event, 'Supervised')
+        loss_event, log_vars_event = self._parse_losses(losses_event)
+        log_vars.update(log_vars_event)
+        loss_event.backward()
+
+        # generate event pseudo-label for evaluation
+        for m in self.get_event_model().modules():
+            if isinstance(m, _DropoutNd):
+                m.training = False
+            if isinstance(m, DropPath):
+                m.training = False
+        event_logits = self.get_event_model().encode_decode(
+            target_label_img, target_label_img_metas)
+        event_softmax = torch.softmax(event_logits.detach(), dim=1)
+        event_prob, event_label = torch.max(event_softmax, dim=1)
+        for m in self.get_event_model().modules():
+            if isinstance(m, _DropoutNd):
+                m.training = True
+            if isinstance(m, DropPath):
+                m.training = True
+
         if self.local_iter % self.debug_img_interval == 0:
             out_dir = os.path.join(self.train_cfg['work_dir'],
                                    'class_mix_debug')
@@ -404,8 +435,6 @@ class DACS(UDADecorator):
             vis_img = torch.clamp(denorm(img, means, stds), 0, 1)
             vis_trg_img = torch.clamp(denorm(target_img, means, stds), 0, 1)
             vis_mixed_img = torch.clamp(denorm(mixed_img, means, stds), 0, 1)
-
-            vis_mixed_img_event = torch.clamp(denorm(mixed_img_event, means, stds), 0, 1)
 
             for j in range(batch_size):
                 rows, cols = 2, 5
@@ -435,11 +464,11 @@ class DACS(UDADecorator):
                     event_r = torch.zeros(event.shape)
                     event_g = torch.zeros(event.shape)
                     event_b = torch.zeros(event.shape)
-                    
-                    event_r[event>0] = 255
-                    event_g[event<0] = 255
 
-                    return torch.stack((event_r,event_g,event_b)).type(torch.uint8)
+                    event_r[event > 0] = 255
+                    event_g[event < 0] = 255
+
+                    return torch.stack((event_r, event_g, event_b)).type(torch.uint8)
 
                 # todo 得到的source image是三维的，应该是两维的才对, 现在暂时简单处理一下
                 subplotimg(axs[0][0], trans_img(vis_img[j]), 'Source Image', cmap='gray')
@@ -454,9 +483,18 @@ class DACS(UDADecorator):
                     pseudo_label[j],
                     'Target Seg (Pseudo) GT',
                     cmap='cityscapes')
-                subplotimg(axs[0][2], trans_img(vis_mixed_img[j]), 'Mixed Image', cmap='gray')
                 subplotimg(
-                    axs[1][2], trans_img(mix_masks[j][0]), 'Domain Mask')
+                    axs[0][2],
+                    event_label[j],
+                    'Target Seg (supervised) GT')
+                subplotimg(
+                    axs[1][2],
+                    target_gt[j],
+                    'Target Seg GT',
+                    cmap='cityscapes')
+                # subplotimg(axs[0][2], trans_img(vis_mixed_img[j]), 'Mixed Image', cmap='gray')
+                # subplotimg(
+                #     axs[1][2], trans_img(mix_masks[j][0]), 'Domain Mask')
                 # subplotimg(axs[0][3], pred_u_s[j], "Seg Pred",
                 #            cmap="cityscapes")
                 # subplotimg(

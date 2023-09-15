@@ -151,7 +151,7 @@ class SemiDataset(object):
         return {
             **s1,
              'target_label_img_metas': s3['img_metas'],
-            'target_label_img': s3['img_metas'] , 
+            'target_label_img': s3['img'] ,
             'target_gt': s3['gt_semantic_seg'],
              'target_unlabel_img_metas': s2['img_metas'],
             'target_unlabel_img': s2['img'],

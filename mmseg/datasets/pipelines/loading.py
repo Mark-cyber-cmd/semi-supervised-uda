@@ -60,10 +60,10 @@ class LoadImageFromFile(object):
         else:
             filename = results['img_info']['filename']
 
-        if filename.split('.')[1]=='npy':
+        if filename.split('.')[1] == 'npy':
             
             img_o = np.load(filename)
-            img_o = img_o[0:1]
+            img_o = img_o[0:9]
             
             ####### gray
             img = np.sum(img_o,0)
