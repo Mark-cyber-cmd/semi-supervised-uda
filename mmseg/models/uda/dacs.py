@@ -404,13 +404,21 @@ class DACS(UDADecorator):
         log_vars.update(mix_log_vars_event)
         mix_losses_event.backward()
 
-        losses_event = self.get_event_model().forward_train(
+        losses_event_labeled = self.get_event_model().forward_train(
             target_label_img, target_label_img_metas, target_gt, return_feat=True)
-        losses_event.pop('features')
-        losses_event = add_prefix(losses_event, 'Supervised')
-        loss_event, log_vars_event = self._parse_losses(losses_event)
-        log_vars.update(log_vars_event)
-        loss_event.backward()
+        losses_event_labeled.pop('features')
+        losses_event_labeled = add_prefix(losses_event_labeled, 'supervised')
+        loss_event_labeled, log_vars_event_labeled = self._parse_losses(losses_event_labeled)
+        log_vars.update(log_vars_event_labeled)
+        loss_event_labeled.backward()
+
+        losses_event_unlabeled = self.get_event_model().forward_train(
+            target_img, target_img_metas, pseudo_label.unsqueeze(1), return_feat=True)
+        losses_event_unlabeled.pop('features')
+        losses_event_unlabeled = add_prefix(losses_event_unlabeled, 'unsupervised')
+        loss_event_unlabeled, log_vars_event_unlabeled = self._parse_losses(losses_event_unlabeled)
+        log_vars.update(log_vars_event_unlabeled)
+        loss_event_unlabeled.backward()
 
         # generate event pseudo-label for evaluation
         for m in self.get_event_model().modules():
@@ -486,7 +494,8 @@ class DACS(UDADecorator):
                 subplotimg(
                     axs[0][2],
                     event_label[j],
-                    'Target Seg (supervised) GT')
+                    'Target Seg (supervised) GT',
+                    cmap='cityscapes')
                 subplotimg(
                     axs[1][2],
                     target_gt[j],
