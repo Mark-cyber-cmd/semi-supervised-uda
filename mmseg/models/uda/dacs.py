@@ -84,7 +84,7 @@ class DACS(UDADecorator):
         else:
             self.imnet_model = None
 
-        self.event_model = build_segmentor(deepcopy(cfg['model']))
+        self.student_model = build_segmentor(deepcopy(cfg['model']))
 
         self.pos_embedding = nn.Conv2d(in_channels=9, out_channels=3, kernel_size=1, stride=1, padding=0, bias=True)
 
@@ -94,8 +94,8 @@ class DACS(UDADecorator):
     def get_imnet_model(self):
         return get_module(self.imnet_model)
 
-    def get_event_model(self):
-        return get_module(self.event_model)
+    def get_student_model(self):
+        return get_module(self.student_model)
 
     def _init_ema_weights(self):
         for param in self.get_ema_model().parameters():
@@ -108,10 +108,19 @@ class DACS(UDADecorator):
             else:
                 mcp[i].data[:] = mp[i].data[:].clone()
 
+    def _init_student_weights(self):
+        mp = list(self.get_model().parameters())
+        mcp = list(self.get_student_model().parameters())
+        for i in range(0, len(mp)):
+            if not mcp[i].data.shape:  # scalar tensor
+                mcp[i].data = mp[i].data.clone()
+            else:
+                mcp[i].data[:] = mp[i].data[:].clone()
+
     def _update_ema(self, iter):
         alpha_teacher = min(1 - 1 / (iter + 1), self.alpha)
         for ema_param, param in zip(self.get_ema_model().parameters(),
-                                    self.get_model().parameters()):
+                                    self.get_student_model().parameters()):
             if not param.data.shape:  # scalar tensor
                 ema_param.data = \
                     alpha_teacher * ema_param.data + \
@@ -235,11 +244,12 @@ class DACS(UDADecorator):
         # Init/update ema model
         if self.local_iter == 0:
             self._init_ema_weights()
-            # assert _params_equal(self.get_ema_model(), self.get_model())
+            self._init_student_weights()
+            # assert _params_equal(self.get_ema_model(), self.get_student_model())
 
         if self.local_iter > 0:
             self._update_ema(self.local_iter)
-            # assert not _params_equal(self.get_ema_model(), self.get_model())
+            # assert not _params_equal(self.get_ema_model(), self.get_student_model())
             # assert self.get_ema_model().training
 
         means, stds = get_mean_std(img_metas, dev)
@@ -254,14 +264,14 @@ class DACS(UDADecorator):
         }
 
         # Train on source images
-        clean_losses = self.get_model().forward_train(
+        clean_losses = self.get_student_model().forward_train(
             img, img_metas, gt_semantic_seg, return_feat=True)
         src_feat = clean_losses.pop('features')
         clean_loss, clean_log_vars = self._parse_losses(clean_losses)
         log_vars.update(clean_log_vars)
         clean_loss.backward(retain_graph=self.enable_fdist)
         if self.print_grad_magnitude:
-            params = self.get_model().backbone.parameters()
+            params = self.get_student_model().backbone.parameters()
             seg_grads = [
                 p.grad.detach().clone() for p in params if p.grad is not None
             ]
@@ -275,7 +285,7 @@ class DACS(UDADecorator):
             feat_loss.backward()
             log_vars.update(add_prefix(feat_log, 'src'))
             if self.print_grad_magnitude:
-                params = self.get_model().backbone.parameters()
+                params = self.get_student_model().backbone.parameters()
                 fd_grads = [
                     p.grad.detach() for p in params if p.grad is not None
                 ]
@@ -283,7 +293,7 @@ class DACS(UDADecorator):
                 grad_mag = calc_grad_magnitude(fd_grads)
                 mmcv.print_log(f'Fdist Grad.: {grad_mag}', 'mmseg')
 
-        # Generate pseudo-label
+        # Generate teacher net pseudo-label
         for m in self.get_ema_model().modules():
             if isinstance(m, _DropoutNd):
                 m.training = False
@@ -292,7 +302,6 @@ class DACS(UDADecorator):
         # target_img = target_img.reshape((2,1,640,640))
         ema_logits = self.get_ema_model().encode_decode(
             target_img, target_img_metas)
-
         ema_softmax = torch.softmax(ema_logits.detach(), dim=1)
         pseudo_prob, pseudo_label = torch.max(ema_softmax, dim=1)
         ps_large_p = pseudo_prob.ge(self.pseudo_threshold).long() == 1
@@ -301,6 +310,21 @@ class DACS(UDADecorator):
         pseudo_weight = pseudo_weight * torch.ones(
             pseudo_prob.shape, device=dev)
 
+        # generate co_train model pseudo-label
+        for m in self.get_model().modules():
+            if isinstance(m, _DropoutNd):
+                m.training = False
+            if isinstance(m, DropPath):
+                m.training = False
+        co_train_logits = self.get_model().encode_decode(
+            target_img, target_img_metas)
+        co_train_softmax = torch.softmax(co_train_logits.detach(), dim=1)
+        co_train_prob, co_train_label = torch.max(co_train_softmax, dim=1)
+        for m in self.get_model().modules():
+            if isinstance(m, _DropoutNd):
+                m.training = True
+            if isinstance(m, DropPath):
+                m.training = True
         ################################################################################
         # kl_losses = dict()
         # kl_loss=torch.nn.KLDivLoss(reduction = 'batchmean')
@@ -366,29 +390,30 @@ class DACS(UDADecorator):
             mixed_img[i], mixed_lbl[i] = strong_transform(
                 strong_parameters,
                 data=torch.stack((img[i], target_img[i])),
-                target=torch.stack((gt_semantic_seg[i][0], pseudo_label[i])))
+                target=torch.stack((gt_semantic_seg[i][0], co_train_label[i])))   # 这里改成和cotrainlabel 去mix
             _, pseudo_weight[i] = strong_transform(
                 strong_parameters,
                 target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
         mixed_img = torch.cat(mixed_img)
         mixed_lbl = torch.cat(mixed_lbl)
 
-        mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
-        mix_masks_event = get_class_masks(target_gt)
-        for i in range(batch_size):
-            strong_parameters['mix'] = mix_masks_event[i]
-            mixed_img_event[i], mixed_lbl_event[i] = strong_transform(
-                strong_parameters,
-                data=torch.stack((target_label_img[i], target_img[i])),
-                target=torch.stack((target_gt[i][0], pseudo_label[i])))
-            _, pseudo_weight[i] = strong_transform(
-                strong_parameters,
-                target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
-        mixed_img_event = torch.cat(mixed_img_event)
-        mixed_lbl_event = torch.cat(mixed_lbl_event)
+        # 舍弃原有半监督框架中有标签数据和无标签数据mix
+        # mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
+        # mix_masks_event = get_class_masks(target_gt)
+        # for i in range(batch_size):
+        #     strong_parameters['mix'] = mix_masks_event[i]
+        #     mixed_img_event[i], mixed_lbl_event[i] = strong_transform(
+        #         strong_parameters,
+        #         data=torch.stack((target_label_img[i], target_img[i])),
+        #         target=torch.stack((target_gt[i][0], pseudo_label[i])))
+        #     _, pseudo_weight[i] = strong_transform(
+        #         strong_parameters,
+        #         target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
+        # mixed_img_event = torch.cat(mixed_img_event)
+        # mixed_lbl_event = torch.cat(mixed_lbl_event)
 
         # Train on mixed images
-        mix_losses = self.get_model().forward_train(
+        mix_losses = self.get_student_model().forward_train(
             mixed_img, img_metas, mixed_lbl, pseudo_weight, return_feat=True)
         mix_losses.pop('features')
         mix_losses = add_prefix(mix_losses, 'mix')
@@ -396,15 +421,16 @@ class DACS(UDADecorator):
         log_vars.update(mix_log_vars)
         mix_loss.backward()
 
-        mix_losses_event = self.get_model().forward_train(
-            mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
-        mix_losses_event.pop('features')
-        mix_losses_event = add_prefix(mix_losses_event, 'mix')
-        mix_losses_event, mix_log_vars_event = self._parse_losses(mix_losses_event)
-        log_vars.update(mix_log_vars_event)
-        mix_losses_event.backward()
+        # 舍弃原有半监督框架中有标签数据和无标签数据mix的训练
+        # mix_losses_event = self.get_student_model().forward_train(
+        #     mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
+        # mix_losses_event.pop('features')
+        # mix_losses_event = add_prefix(mix_losses_event, 'mix')
+        # mix_losses_event, mix_log_vars_event = self._parse_losses(mix_losses_event)
+        # log_vars.update(mix_log_vars_event)
+        # mix_losses_event.backward()
 
-        losses_event_labeled = self.get_event_model().forward_train(
+        losses_event_labeled = self.get_model().forward_train(
             target_label_img, target_label_img_metas, target_gt, return_feat=True)
         losses_event_labeled.pop('features')
         losses_event_labeled = add_prefix(losses_event_labeled, 'supervised')
@@ -412,29 +438,13 @@ class DACS(UDADecorator):
         log_vars.update(log_vars_event_labeled)
         loss_event_labeled.backward()
 
-        losses_event_unlabeled = self.get_event_model().forward_train(
+        losses_event_unlabeled = self.get_model().forward_train(
             target_img, target_img_metas, pseudo_label.unsqueeze(1), return_feat=True)
         losses_event_unlabeled.pop('features')
         losses_event_unlabeled = add_prefix(losses_event_unlabeled, 'unsupervised')
         loss_event_unlabeled, log_vars_event_unlabeled = self._parse_losses(losses_event_unlabeled)
         log_vars.update(log_vars_event_unlabeled)
         loss_event_unlabeled.backward()
-
-        # generate event pseudo-label for evaluation
-        for m in self.get_event_model().modules():
-            if isinstance(m, _DropoutNd):
-                m.training = False
-            if isinstance(m, DropPath):
-                m.training = False
-        event_logits = self.get_event_model().encode_decode(
-            target_label_img, target_label_img_metas)
-        event_softmax = torch.softmax(event_logits.detach(), dim=1)
-        event_prob, event_label = torch.max(event_softmax, dim=1)
-        for m in self.get_event_model().modules():
-            if isinstance(m, _DropoutNd):
-                m.training = True
-            if isinstance(m, DropPath):
-                m.training = True
 
         if self.local_iter % self.debug_img_interval == 0:
             out_dir = os.path.join(self.train_cfg['work_dir'],
@@ -493,7 +503,7 @@ class DACS(UDADecorator):
                     cmap='cityscapes')
                 subplotimg(
                     axs[0][2],
-                    event_label[j],
+                    co_train_label[j],
                     'Target Seg (supervised) GT',
                     cmap='cityscapes')
                 subplotimg(
