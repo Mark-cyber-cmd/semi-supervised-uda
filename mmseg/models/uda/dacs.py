@@ -390,7 +390,7 @@ class DACS(UDADecorator):
             mixed_img[i], mixed_lbl[i] = strong_transform(
                 strong_parameters,
                 data=torch.stack((img[i], target_img[i])),
-                target=torch.stack((gt_semantic_seg[i][0], co_train_label[i])))   # 这里改成和cotrainlabel 去mix
+                target=torch.stack((gt_semantic_seg[i][0], co_train_label[i])))   # 这里改成和cotrain-label 去mix
             _, pseudo_weight[i] = strong_transform(
                 strong_parameters,
                 target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
@@ -398,19 +398,19 @@ class DACS(UDADecorator):
         mixed_lbl = torch.cat(mixed_lbl)
 
         # 舍弃原有半监督框架中有标签数据和无标签数据mix
-        # mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
-        # mix_masks_event = get_class_masks(target_gt)
-        # for i in range(batch_size):
-        #     strong_parameters['mix'] = mix_masks_event[i]
-        #     mixed_img_event[i], mixed_lbl_event[i] = strong_transform(
-        #         strong_parameters,
-        #         data=torch.stack((target_label_img[i], target_img[i])),
-        #         target=torch.stack((target_gt[i][0], pseudo_label[i])))
-        #     _, pseudo_weight[i] = strong_transform(
-        #         strong_parameters,
-        #         target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
-        # mixed_img_event = torch.cat(mixed_img_event)
-        # mixed_lbl_event = torch.cat(mixed_lbl_event)
+        mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
+        mix_masks_event = get_class_masks(target_gt)
+        for i in range(batch_size):
+            strong_parameters['mix'] = mix_masks_event[i]
+            mixed_img_event[i], mixed_lbl_event[i] = strong_transform(
+                strong_parameters,
+                data=torch.stack((target_label_img[i], target_img[i])),
+                target=torch.stack((target_gt[i][0], pseudo_label[i])))
+            _, pseudo_weight[i] = strong_transform(
+                strong_parameters,
+                target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
+        mixed_img_event = torch.cat(mixed_img_event)
+        mixed_lbl_event = torch.cat(mixed_lbl_event)
 
         # Train on mixed images
         mix_losses = self.get_student_model().forward_train(
@@ -422,13 +422,13 @@ class DACS(UDADecorator):
         mix_loss.backward()
 
         # 舍弃原有半监督框架中有标签数据和无标签数据mix的训练
-        # mix_losses_event = self.get_student_model().forward_train(
-        #     mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
-        # mix_losses_event.pop('features')
-        # mix_losses_event = add_prefix(mix_losses_event, 'mix')
-        # mix_losses_event, mix_log_vars_event = self._parse_losses(mix_losses_event)
-        # log_vars.update(mix_log_vars_event)
-        # mix_losses_event.backward()
+        mix_losses_event = self.get_student_model().forward_train(
+            mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
+        mix_losses_event.pop('features')
+        mix_losses_event = add_prefix(mix_losses_event, 'mix')
+        mix_losses_event, mix_log_vars_event = self._parse_losses(mix_losses_event)
+        log_vars.update(mix_log_vars_event)
+        mix_losses_event.backward()
 
         losses_event_labeled = self.get_model().forward_train(
             target_label_img, target_label_img_metas, target_gt, return_feat=True)
