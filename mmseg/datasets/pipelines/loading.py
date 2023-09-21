@@ -60,10 +60,17 @@ class LoadImageFromFile(object):
         else:
             filename = results['img_info']['filename']
 
-        if filename.split('.')[1] == 'npy':
+        if filename.split('.')[-1] == 'npy':
             
             img_o = np.load(filename)
-            img_o = img_o[0:9]
+            C, W, H = img_o.shape
+
+            if filename.split('/')[-2] == 'train':
+                # Randomly select 9 channels
+                dimension_index = np.random.choice(range(C-9), 1, replace=False)[0]
+                img_o = img_o[dimension_index:dimension_index+9, :, :]
+            else:
+                img_o = img_o[0:9]
             
             ####### gray
             img = np.sum(img_o,0)
