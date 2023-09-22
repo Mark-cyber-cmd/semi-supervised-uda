@@ -86,6 +86,7 @@ class DACS(UDADecorator):
 
         self.student_model = build_segmentor(deepcopy(cfg['model']))
 
+        self.strong_aug_model = build_segmentor(deepcopy(cfg['model']))
         self.pos_embedding = nn.Conv2d(in_channels=9, out_channels=3, kernel_size=1, stride=1, padding=0, bias=True)
 
     def get_ema_model(self):
@@ -96,6 +97,9 @@ class DACS(UDADecorator):
 
     def get_student_model(self):
         return get_module(self.student_model)
+
+    def strong_aug_model(self):
+        return get_module(self.strong_aug_model)
 
     def _init_ema_weights(self):
         for param in self.get_ema_model().parameters():
@@ -379,24 +383,25 @@ class DACS(UDADecorator):
             pseudo_weight[:, :self.psweight_ignore_top, :] = 0
         if self.psweight_ignore_bottom > 0:
             pseudo_weight[:, -self.psweight_ignore_bottom:, :] = 0
-        gt_pixel_weight = torch.ones((pseudo_weight.shape), device=dev)
+        gt_pixel_weight = torch.ones(pseudo_weight.shape, device=dev)
 
         # Apply mixing
+        # mix(event,image) 同时 mix(cotrain-pseudo,img_gt) 作为label
         mixed_img, mixed_lbl = [None] * batch_size, [None] * batch_size
         mix_masks = get_class_masks(gt_semantic_seg)
-
         for i in range(batch_size):
             strong_parameters['mix'] = mix_masks[i]
             mixed_img[i], mixed_lbl[i] = strong_transform(
                 strong_parameters,
                 data=torch.stack((img[i], target_img[i])),
-                target=torch.stack((gt_semantic_seg[i][0], co_train_label[i])))   # 这里改成和cotrainlabel 去mix
+                target=torch.stack((gt_semantic_seg[i][0], co_train_label[i])))  # 这里改成和cotrainlabel 去mix
             _, pseudo_weight[i] = strong_transform(
                 strong_parameters,
                 target=torch.stack((gt_pixel_weight[i], pseudo_weight[i])))
         mixed_img = torch.cat(mixed_img)
         mixed_lbl = torch.cat(mixed_lbl)
 
+        # mix(event_label,event) 同时 mix(event_gt,teacher-pseudo) 作为label
         mixed_img_event, mixed_lbl_event = [None] * batch_size, [None] * batch_size
         mix_masks_event = get_class_masks(target_gt)
         for i in range(batch_size):
@@ -428,8 +433,9 @@ class DACS(UDADecorator):
         log_vars.update(mix_log_vars_event)
         mix_losses_event.backward()
 
+        # cotrain网络认为已经得到可靠的pseudo-label，直接用于mix训练
         losses_event_labeled = self.get_model().forward_train(
-            target_label_img, target_label_img_metas, target_gt, return_feat=True)
+            mixed_img_event, target_img_metas, mixed_lbl_event, pseudo_weight, return_feat=True)
         losses_event_labeled.pop('features')
         losses_event_labeled = add_prefix(losses_event_labeled, 'supervised')
         loss_event_labeled, log_vars_event_labeled = self._parse_losses(losses_event_labeled)
